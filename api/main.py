@@ -21,6 +21,14 @@ async def lifespan(app: FastAPI):
     print("Starting Story Memory System...")
     print(f"Debug mode: {os.getenv('DEBUG', 'False')}")
 
+    # Verify required environment variables
+    required_vars = ["SUPABASE_URL", "SUPABASE_KEY", "XAI_API_KEY"]
+    missing = [v for v in required_vars if not os.getenv(v)]
+    if missing:
+        print(f"Warning: Missing environment variables: {', '.join(missing)}")
+    else:
+        print("All required environment variables configured")
+
     yield
 
     # Shutdown
@@ -60,18 +68,36 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Detailed health check."""
+    db_status = "not_configured"
+    extraction_status = "not_configured"
+
+    try:
+        from api.dependencies import get_supabase_client
+        client = get_supabase_client()
+        # Try a simple query to verify connection
+        client.table("stories").select("id").limit(1).execute()
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)[:50]}"
+
+    try:
+        from api.dependencies import get_extraction_service
+        service = get_extraction_service()
+        if service:
+            extraction_status = "configured"
+    except Exception as e:
+        extraction_status = f"error: {str(e)[:50]}"
+
     return {
-        "status": "healthy",
-        "database": "not_configured",  # Will be updated when DB is connected
-        "extraction_service": "not_configured",
+        "status": "healthy" if db_status == "connected" else "degraded",
+        "database": db_status,
+        "extraction_service": extraction_status,
     }
 
 
-# Import and include routers (will be uncommented as routes are implemented)
-# from api.routes import stories, sessions, memory
-# app.include_router(stories.router)
-# app.include_router(sessions.router)
-# app.include_router(memory.router)
+# Import and include routers
+from api.routes.memory import router as memory_router
+app.include_router(memory_router)
 
 
 if __name__ == "__main__":
