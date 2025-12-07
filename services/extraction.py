@@ -5,10 +5,10 @@ This service extracts structured memory data from story session transcripts
 using LLM structured outputs with Pydantic schemas.
 """
 
-import os
 from typing import Optional
 from openai import OpenAI
 from schemas.extraction import StoryExtraction
+from config import require_secret
 
 
 EXTRACTION_SYSTEM_PROMPT = """You are a narrative memory and game state extraction system. Analyze interactive storytelling session transcripts and extract both narrative information and mechanical game state.
@@ -37,11 +37,10 @@ class ExtractionService:
         Initialize extraction service.
 
         Args:
-            api_key: xAI API key (defaults to XAI_API_KEY env var)
+            api_key: xAI API key (defaults to XAI_API_KEY from secret manager)
         """
-        self.api_key = api_key or os.getenv("XAI_API_KEY")
-        if not self.api_key:
-            raise ValueError("XAI_API_KEY must be set")
+        # Get API key from secret manager if not provided
+        self.api_key = api_key or require_secret("XAI_API_KEY")
 
         # Initialize OpenAI client pointing to xAI API
         self.client = OpenAI(

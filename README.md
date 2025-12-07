@@ -62,8 +62,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -e .
 ```
 
-### 2. Configure Environment
+### 2. Configure Secrets
 
+**Development**: Use environment variables (`.env` file)
 ```bash
 # Copy example environment file
 cp .env.example .env
@@ -74,7 +75,9 @@ cp .env.example .env
 # - Optional: Anthropic API key for Claude
 ```
 
-**Get your xAI API key**: Visit [console.x.ai](https://console.x.ai) to create an API key for Grok 4.1 Fast.
+**Production**: Use AWS Secrets Manager or Google Cloud Secret Manager
+
+See **[Secret Management Guide](docs/SECRET_MANAGEMENT.md)** for detailed setup instructions for all environments.
 
 ### 3. Set Up Database
 
@@ -184,6 +187,28 @@ This project uses **Grok 4.1 Fast** (`grok-4.1-fast-reasoning`) from xAI for str
 - **Cost**: Free agent tools API
 
 The extraction service uses OpenAI's structured output API with Pydantic models to guarantee schema compliance.
+
+## Security & Secret Management
+
+The project includes a comprehensive secret management system that supports multiple backends:
+
+- **Development**: Environment variables (`.env` files)
+- **Production**: AWS Secrets Manager or Google Cloud Secret Manager
+
+All secrets (API keys, database credentials) are centralized through the `SecretManager` class, making it easy to switch between environments without code changes.
+
+**Key Features:**
+- ✅ Secrets never committed to version control
+- ✅ In-memory caching for performance
+- ✅ Support for AWS and GCP secret rotation
+- ✅ IAM-based access control
+- ✅ Easy migration between backends
+
+**Learn more**: See [Secret Management Guide](docs/SECRET_MANAGEMENT.md)
+
+## Documentation
+
+- [Secret Management Guide](docs/SECRET_MANAGEMENT.md) - Comprehensive guide for managing secrets in dev and production
 
 ## License
 

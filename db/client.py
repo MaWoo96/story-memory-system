@@ -2,9 +2,9 @@
 Supabase database client.
 """
 
-import os
 from typing import Optional
 from supabase import create_client, Client
+from config import require_secret
 
 
 class DatabaseClient:
@@ -15,14 +15,12 @@ class DatabaseClient:
         Initialize database client.
 
         Args:
-            url: Supabase URL (defaults to SUPABASE_URL env var)
-            key: Supabase key (defaults to SUPABASE_KEY env var)
+            url: Supabase URL (defaults to SUPABASE_URL from secret manager)
+            key: Supabase key (defaults to SUPABASE_KEY from secret manager)
         """
-        self.url = url or os.getenv("SUPABASE_URL")
-        self.key = key or os.getenv("SUPABASE_KEY")
-
-        if not self.url or not self.key:
-            raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
+        # Get credentials from secret manager if not provided
+        self.url = url or require_secret("SUPABASE_URL")
+        self.key = key or require_secret("SUPABASE_KEY")
 
         self.client: Client = create_client(self.url, self.key)
 
