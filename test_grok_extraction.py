@@ -115,8 +115,8 @@ def main():
             print(f"  - {entity.canonical_name} ({entity.entity_type})")
             print(f"    Aliases: {', '.join(entity.aliases) if entity.aliases else 'None'}")
             print(f"    Importance: {entity.importance}")
-            if entity.initial_facts:
-                print(f"    Facts: {len(entity.initial_facts)}")
+            if entity.facts:
+                print(f"    Facts: {len(entity.facts)}")
             print()
 
         print(f"Events Extracted: {len(extraction.events)}")
@@ -130,18 +130,18 @@ def main():
             print(f"    Status: {decision.decision_type}")
             print()
 
-        if extraction.protagonist_state:
+        if extraction.protagonist:
             print("Protagonist State:")
-            if extraction.protagonist_state.skills:
-                print(f"  Skills: {len(extraction.protagonist_state.skills)}")
-                for skill in extraction.protagonist_state.skills:
-                    print(f"    - {skill.skill_name} (Rank: {skill.rank})")
+            if extraction.protagonist.skills:
+                print(f"  Skills: {len(extraction.protagonist.skills)}")
+                for skill in extraction.protagonist.skills:
+                    print(f"    - {skill.name} (Rank: {skill.rank})")
             print()
 
         if extraction.character_states:
             print(f"Character Relationship States: {len(extraction.character_states)}")
             for state in extraction.character_states:
-                print(f"  - {state.character_name}: {state.stat_type} = {state.current_value}/{state.max_value}")
+                print(f"  - {state.character}: {state.stat_type} = {state.value}/{state.max}")
             print()
 
         print("=" * 60)

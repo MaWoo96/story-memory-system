@@ -6,11 +6,13 @@ Provides shared dependencies like database clients, service instances, etc.
 
 from functools import lru_cache
 import os
-from typing import Optional
+from typing import Generator
+
+from supabase import create_client, Client
 
 
 @lru_cache()
-def get_supabase_client():
+def get_supabase_client() -> Client:
     """
     Get Supabase client instance (cached).
 
@@ -20,8 +22,6 @@ def get_supabase_client():
     Raises:
         ValueError: If Supabase credentials are not configured
     """
-    from supabase import create_client, Client
-
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY")
 
@@ -42,19 +42,43 @@ def get_extraction_service():
     Raises:
         ValueError: If XAI_API_KEY is not configured
     """
+    from services.extraction import ExtractionService
+
     api_key = os.getenv("XAI_API_KEY")
 
     if not api_key:
         raise ValueError("XAI_API_KEY must be set in environment")
 
-    # Will be implemented when extraction service is created
-    # from services.extraction import ExtractionService
-    # return ExtractionService()
-
-    return None
+    return ExtractionService(api_key=api_key)
 
 
-def get_db():
+def get_storage_service():
+    """
+    Get storage service instance.
+
+    Returns:
+        StorageService instance
+    """
+    from services.storage import StorageService
+
+    client = get_supabase_client()
+    return StorageService(db_client=client)
+
+
+def get_context_service():
+    """
+    Get context service instance.
+
+    Returns:
+        ContextService instance
+    """
+    from services.context import ContextService
+
+    client = get_supabase_client()
+    return ContextService(db_client=client)
+
+
+def get_db() -> Generator[Client, None, None]:
     """
     Get database connection (for dependency injection).
 
@@ -72,7 +96,7 @@ def get_db():
 def get_current_user(
     # Add authentication dependency when implemented
     # token: str = Depends(oauth2_scheme)
-):
+) -> dict:
     """
     Get current authenticated user.
 
