@@ -7,6 +7,7 @@ using LLM structured outputs with Pydantic schemas.
 
 import os
 from typing import Optional
+from openai import OpenAI
 from schemas.extraction import StoryExtraction
 
 
@@ -42,9 +43,11 @@ class ExtractionService:
         if not self.api_key:
             raise ValueError("XAI_API_KEY must be set")
 
-        # TODO: Initialize xAI client when SDK is available
-        # from xai_sdk import Client
-        # self.client = Client(api_key=self.api_key)
+        # Initialize OpenAI client pointing to xAI API
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url="https://api.x.ai/v1"
+        )
 
     def extract_session(
         self,
@@ -54,7 +57,7 @@ class ExtractionService:
         previous_summary: Optional[str] = None,
     ) -> StoryExtraction:
         """
-        Extract structured data from a session transcript.
+        Extract structured data from a session transcript using Grok 4.1 Fast.
 
         Args:
             transcript: Full session transcript
@@ -65,25 +68,32 @@ class ExtractionService:
         Returns:
             StoryExtraction object with all extracted information
         """
-        # TODO: Implement extraction using Grok 4.1 Fast
-        # This is a placeholder implementation
-        raise NotImplementedError("Extraction service not yet implemented")
+        # Build context from previous sessions
+        context = self._build_context(
+            story_premise, previous_summary, existing_entities
+        )
 
-        # Example implementation structure:
-        # chat = self.client.chat.create(model="grok-4-1-fast")
-        # chat.append(system(EXTRACTION_SYSTEM_PROMPT))
-        #
-        # # Build context
-        # context = self._build_context(
-        #     story_premise, previous_summary, existing_entities
-        # )
-        #
-        # user_message = f"{context}\n\nSESSION TRANSCRIPT:\n---\n{transcript}\n---"
-        # chat.append(user(user_message))
-        #
-        # # Parse with guaranteed schema compliance
-        # response, extraction = chat.parse(StoryExtraction)
-        # return extraction
+        # Construct user message with context and transcript
+        user_message = f"{context}\n\nSESSION TRANSCRIPT:\n---\n{transcript}\n---"
+
+        # Call Grok 4.1 Fast with structured output
+        completion = self.client.beta.chat.completions.parse(
+            model="grok-4.1-fast-reasoning",
+            messages=[
+                {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message}
+            ],
+            response_format=StoryExtraction,
+            temperature=0.3,  # Lower temperature for more consistent extraction
+        )
+
+        # Extract the parsed response
+        extraction = completion.choices[0].message.parsed
+
+        if extraction is None:
+            raise ValueError("Failed to extract structured data from transcript")
+
+        return extraction
 
     def _build_context(
         self,

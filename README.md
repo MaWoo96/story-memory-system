@@ -69,16 +69,21 @@ pip install -e .
 cp .env.example .env
 
 # Edit .env with your credentials:
-# - Supabase URL and keys
-# - xAI API key for Grok
+# - Supabase URL and keys (pre-configured)
+# - xAI API key for Grok 4.1 Fast (get at https://console.x.ai)
 # - Optional: Anthropic API key for Claude
 ```
 
+**Get your xAI API key**: Visit [console.x.ai](https://console.x.ai) to create an API key for Grok 4.1 Fast.
+
 ### 3. Set Up Database
 
-1. Create a Supabase project at https://supabase.com
-2. Run the migrations in `db/migrations/` in your Supabase SQL editor
-3. Update `.env` with your Supabase credentials
+**Database is already set up!** The Supabase project is configured and all migrations have been applied:
+- Project URL: `https://mntpiewbprdjpgcbzaca.supabase.co`
+- 17 tables created with Row Level Security (RLS) enabled
+- All security policies configured
+
+No manual SQL setup required.
 
 ### 4. Run the API
 
@@ -108,7 +113,15 @@ Visit http://localhost:8000/docs for the interactive API documentation.
 pytest tests/ -v
 ```
 
-### Testing Extraction
+### Testing Grok 4.1 Fast Extraction
+
+Quick test with the included test script:
+
+```bash
+python test_grok_extraction.py
+```
+
+Or use the extraction service directly:
 
 ```python
 from services.extraction import ExtractionService
@@ -152,13 +165,25 @@ See `db/migrations/` for the complete PostgreSQL schema including:
 ## Implementation Status
 
 - [x] Project setup
-- [x] Database schema
+- [x] Database schema (Supabase PostgreSQL)
+- [x] Row Level Security (RLS) policies
 - [x] Pydantic extraction schemas
-- [ ] Extraction service
+- [x] Grok 4.1 Fast extraction service (OpenAI-compatible)
 - [ ] Storage service
 - [ ] Context builder
 - [ ] API endpoints
 - [ ] Frontend (Next.js)
+
+## Grok 4.1 Fast Integration
+
+This project uses **Grok 4.1 Fast** (`grok-4.1-fast-reasoning`) from xAI for structured memory extraction:
+
+- **Model**: Grok 4.1 Fast with reasoning (2M context window)
+- **API**: OpenAI-compatible via `https://api.x.ai/v1`
+- **Features**: Structured outputs with Pydantic schemas, tool calling, agent capabilities
+- **Cost**: Free agent tools API
+
+The extraction service uses OpenAI's structured output API with Pydantic models to guarantee schema compliance.
 
 ## License
 
