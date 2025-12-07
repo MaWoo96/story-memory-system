@@ -97,7 +97,10 @@ async def health_check():
 
 # Import and include routers
 from api.routes.memory import router as memory_router
+from api.routes.images import router as images_router
+
 app.include_router(memory_router)
+app.include_router(images_router)
 
 
 if __name__ == "__main__":
