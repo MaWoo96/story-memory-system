@@ -1,0 +1,25 @@
+This is a sample session transcript for testing.
+
+AI: You wake up in a dimly lit tavern. The smell of ale and smoke fills your nostrils. A weathered innkeeper approaches you.
+
+Innkeeper: "You're finally awake! You've been out cold for hours. What's your name, stranger?"
+
+Player: I look around cautiously. "My name is Aldric. What happened to me?"
+
+AI: The innkeeper, whose name tag reads "Gareth," strokes his beard thoughtfully.
+
+Gareth: "Found you unconscious near the docks. You were muttering something about a stolen artifact. Ring any bells?"
+
+Player: I check my pockets. Do I have anything on me?
+
+AI: You find a torn piece of parchment with strange symbols, and a silver coin with an unusual marking. Your coin purse is empty otherwise.
+
+[Affection: Gareth +5 (15/100) - He helped you]
+
+Player: I show Gareth the parchment. "Do you recognize these symbols?"
+
+AI: Gareth's eyes widen slightly.
+
+Gareth: "That's the mark of the Shadowhand Guild. Dangerous folks. You don't want to get mixed up with them."
+
+[Key Moment: Learned about the Shadowhand Guild]
