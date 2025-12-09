@@ -644,3 +644,297 @@ class ContextService:
         except Exception:
             # Table might not exist yet, ignore
             pass
+
+    # ============================================
+    # SEMANTIC MEMORY RETRIEVAL (SpicyChat Pattern)
+    # ============================================
+
+    async def get_semantic_memories(
+        self,
+        story_id: UUID,
+        characters_present: Optional[list[str]] = None,
+        current_emotion: Optional[str] = None,
+        current_topics: Optional[list[str]] = None,
+        max_memories: int = 20,
+        include_pinned: bool = True,
+    ) -> list[dict]:
+        """
+        Retrieve semantic memories with relevance scoring.
+
+        Based on SpicyChat's Semantic Memory 2.0 pattern:
+        - Always include pinned memories
+        - Score by recency, importance, character overlap, emotion match
+        - Return top N most relevant memories
+
+        Args:
+            story_id: Story UUID
+            characters_present: Characters in current scene for overlap scoring
+            current_emotion: Current scene emotion for matching
+            current_topics: Current scene topics for matching
+            max_memories: Maximum memories to return
+            include_pinned: Always include pinned memories
+
+        Returns:
+            List of scored and sorted semantic memories
+        """
+        # Get all non-hidden memories
+        result = self.db.table("semantic_memories").select("*").eq(
+            "story_id", str(story_id)
+        ).eq("hidden", False).execute()
+
+        memories = result.data or []
+
+        # Separate pinned and regular memories
+        pinned = [m for m in memories if m.get("pinned")] if include_pinned else []
+        regular = [m for m in memories if not m.get("pinned")]
+
+        # Score regular memories
+        scored_regular = []
+        for memory in regular:
+            score = self._calculate_memory_score(
+                memory=memory,
+                characters_present=characters_present,
+                current_emotion=current_emotion,
+                current_topics=current_topics,
+            )
+            memory["_relevance_score"] = score
+            scored_regular.append(memory)
+
+        # Sort by score
+        scored_regular.sort(key=lambda m: m["_relevance_score"], reverse=True)
+
+        # Take top N, reserving space for pinned
+        available_slots = max_memories - len(pinned)
+        top_regular = scored_regular[:available_slots]
+
+        # Combine pinned + top regular
+        result_memories = pinned + top_regular
+
+        # Update access counts for retrieved memories
+        memory_ids = [m["id"] for m in result_memories]
+        if memory_ids:
+            try:
+                for mid in memory_ids:
+                    self.db.table("semantic_memories").update({
+                        "access_count": self.db.rpc("increment", {"x": 1}),
+                        "last_accessed_at": datetime.utcnow().isoformat(),
+                    }).eq("id", mid).execute()
+            except Exception:
+                pass  # Non-critical update
+
+        return result_memories
+
+    def _calculate_memory_score(
+        self,
+        memory: dict,
+        characters_present: Optional[list[str]] = None,
+        current_emotion: Optional[str] = None,
+        current_topics: Optional[list[str]] = None,
+    ) -> float:
+        """
+        Calculate relevance score for a memory.
+
+        Score components (weights sum to 1.0):
+        - Recency: 0.15 (time decay)
+        - Importance: 0.25 (base importance)
+        - Character overlap: 0.25 (matching characters)
+        - Emotion match: 0.15 (matching emotion)
+        - Topic match: 0.15 (matching topics)
+        - Setup/payoff: 0.05 (narrative continuity bonus)
+
+        Returns:
+            Float score 0.0-1.0 (can exceed 1.0 with bonuses)
+        """
+        score = 0.0
+
+        # 1. Recency score (decay factor 0.995 per day)
+        created_at = memory.get("created_at")
+        if created_at:
+            try:
+                if isinstance(created_at, str):
+                    created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                else:
+                    created = created_at
+                days_ago = (datetime.now(created.tzinfo) - created).days
+                recency_score = pow(0.995, days_ago)
+            except Exception:
+                recency_score = 0.5
+        else:
+            recency_score = 0.5
+        score += 0.15 * recency_score
+
+        # 2. Importance score
+        importance = memory.get("importance", 0.5)
+        score += 0.25 * importance
+
+        # 3. Character overlap score
+        if characters_present:
+            memory_chars = memory.get("characters_involved") or []
+            if isinstance(memory_chars, str):
+                import json
+                try:
+                    memory_chars = json.loads(memory_chars)
+                except Exception:
+                    memory_chars = []
+
+            overlap = len(set(memory_chars) & set(characters_present))
+            max_possible = max(len(memory_chars), len(characters_present), 1)
+            char_score = overlap / max_possible
+        else:
+            char_score = 0.5  # Neutral if no context provided
+        score += 0.25 * char_score
+
+        # 4. Emotion match score
+        if current_emotion:
+            memory_emotion = memory.get("primary_emotion", "")
+            emotion_match = 1.0 if memory_emotion == current_emotion else 0.0
+
+            # Partial credit for related emotions
+            emotion_groups = {
+                "positive": ["joy", "excitement", "trust", "tenderness", "surprise"],
+                "negative": ["tension", "conflict", "fear", "sadness", "anger"],
+                "intimate": ["intimacy", "lust", "tenderness", "trust"],
+            }
+            if emotion_match < 1.0:
+                for group in emotion_groups.values():
+                    if memory_emotion in group and current_emotion in group:
+                        emotion_match = 0.5
+                        break
+        else:
+            emotion_match = 0.5
+        score += 0.15 * emotion_match
+
+        # 5. Topic match score
+        if current_topics:
+            memory_topics = memory.get("topics") or []
+            if isinstance(memory_topics, str):
+                import json
+                try:
+                    memory_topics = json.loads(memory_topics)
+                except Exception:
+                    memory_topics = []
+
+            if memory_topics:
+                overlap = len(set(memory_topics) & set(current_topics))
+                topic_score = overlap / len(current_topics)
+            else:
+                topic_score = 0.0
+        else:
+            topic_score = 0.5
+        score += 0.15 * topic_score
+
+        # 6. Setup/payoff bonus
+        if memory.get("setup_for_payoff"):
+            score += 0.05
+
+        return score
+
+    async def get_relevant_memories_for_chat(
+        self,
+        story_id: UUID,
+        recent_messages: list[dict],
+        max_memories: int = 10,
+    ) -> list[dict]:
+        """
+        Get relevant semantic memories based on recent chat context.
+
+        Extracts characters and themes from recent messages to find relevant memories.
+
+        Args:
+            story_id: Story UUID
+            recent_messages: Recent chat messages for context extraction
+            max_memories: Maximum memories to return
+
+        Returns:
+            List of relevant memories with scores
+        """
+        # Extract characters mentioned in recent messages
+        characters_mentioned = set()
+        content_text = ""
+
+        for msg in recent_messages[-10:]:  # Look at last 10 messages
+            content = msg.get("content", "")
+            content_text += " " + content
+
+            # Simple character extraction (could use NER in future)
+            # For now, get from database and check mentions
+            entities = self.db.table("entities").select(
+                "canonical_name"
+            ).eq("story_id", str(story_id)).eq(
+                "entity_type", "character"
+            ).execute()
+
+            for entity in entities.data:
+                name = entity["canonical_name"]
+                if name.lower() in content.lower():
+                    characters_mentioned.add(name)
+
+        # Infer emotion from content (simple keyword matching)
+        emotion_keywords = {
+            "joy": ["happy", "joy", "excited", "wonderful", "amazing"],
+            "tension": ["worried", "nervous", "tense", "afraid", "anxious"],
+            "intimacy": ["close", "intimate", "warm", "gentle", "tender"],
+            "conflict": ["angry", "furious", "fight", "argue", "conflict"],
+            "fear": ["scared", "terrified", "fear", "horror"],
+            "sadness": ["sad", "crying", "tears", "grief", "loss"],
+        }
+
+        current_emotion = None
+        content_lower = content_text.lower()
+        for emotion, keywords in emotion_keywords.items():
+            if any(kw in content_lower for kw in keywords):
+                current_emotion = emotion
+                break
+
+        # Get memories with scoring
+        memories = await self.get_semantic_memories(
+            story_id=story_id,
+            characters_present=list(characters_mentioned),
+            current_emotion=current_emotion,
+            max_memories=max_memories,
+        )
+
+        return memories
+
+    def format_memories_for_context(
+        self,
+        memories: list[dict],
+        include_scores: bool = False,
+    ) -> str:
+        """
+        Format semantic memories into a context string for LLM injection.
+
+        Args:
+            memories: List of semantic memory dicts
+            include_scores: Include relevance scores (for debugging)
+
+        Returns:
+            Formatted string ready for LLM context
+        """
+        if not memories:
+            return ""
+
+        parts = ["IMPORTANT MEMORIES:"]
+
+        for memory in memories:
+            chars = memory.get("characters_involved", [])
+            if isinstance(chars, str):
+                import json
+                try:
+                    chars = json.loads(chars)
+                except Exception:
+                    chars = []
+
+            char_str = f" [{', '.join(chars)}]" if chars else ""
+
+            # Format based on pinned status
+            prefix = "📌" if memory.get("pinned") else "-"
+            text = memory.get("memory_text", "")
+
+            if include_scores:
+                score = memory.get("_relevance_score", 0)
+                parts.append(f"{prefix}{char_str} {text} (score: {score:.2f})")
+            else:
+                parts.append(f"{prefix}{char_str} {text}")
+
+        return "\n".join(parts)

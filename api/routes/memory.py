@@ -463,13 +463,17 @@ async def merge_entities(
 async def create_story(
     title: str,
     premise: Optional[str] = None,
-    user_id: str = "placeholder",  # Will come from auth
+    user_id: Optional[str] = Query(default=None),  # Will come from auth
 ):
     """Create a new story."""
+    import uuid
     db = get_supabase_client()
 
+    # Use provided user_id or generate a placeholder UUID for development
+    actual_user_id = user_id if user_id else str(uuid.uuid4())
+
     result = db.table("stories").insert({
-        "user_id": user_id,
+        "user_id": actual_user_id,
         "title": title,
         "premise": premise,
         "status": "active",
@@ -480,14 +484,17 @@ async def create_story(
 
 @router.get("/stories")
 async def list_stories(
-    user_id: str = "placeholder",  # Will come from auth
+    user_id: Optional[str] = Query(default=None),  # Will come from auth
     status: Optional[str] = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
 ):
     """List stories for a user."""
     db = get_supabase_client()
 
-    query = db.table("stories").select("*").eq("user_id", user_id)
+    query = db.table("stories").select("*").is_("deleted_at", "null")
+
+    if user_id:
+        query = query.eq("user_id", user_id)
 
     if status:
         query = query.eq("status", status)

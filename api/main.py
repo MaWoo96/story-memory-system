@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (override existing to use project-specific config)
+load_dotenv(override=True)
 
 
 @asynccontextmanager
@@ -44,6 +44,13 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pathlib import Path
+
+# Get the project root directory
+PROJECT_ROOT = Path(__file__).parent.parent
+STATIC_DIR = PROJECT_ROOT / "static"
 
 # CORS middleware
 app.add_middleware(
@@ -98,9 +105,39 @@ async def health_check():
 # Import and include routers
 from api.routes.memory import router as memory_router
 from api.routes.images import router as images_router
+from api.routes.frontend import router as frontend_router
 
+# Frontend router first so it takes precedence for /sessions/{id}/context
+app.include_router(frontend_router)
 app.include_router(memory_router)
 app.include_router(images_router)
+from api.routes.stories import router as stories_router
+app.include_router(stories_router)
+
+
+# ============================================
+# IMAGE GENERATOR UI
+# ============================================
+
+@app.get("/generator")
+async def image_generator_ui():
+    """Serve the image generator UI."""
+    html_path = STATIC_DIR / "image-generator.html"
+    if html_path.exists():
+        return FileResponse(html_path, media_type="text/html")
+    return {"error": "UI not found", "path": str(html_path)}
+
+
+# Static file mounts (MUST be after route definitions)
+app.mount("/images", StaticFiles(directory="/tmp/story-images"), name="images")
+
+# Serve generated images from local directory
+GENERATED_IMAGES_DIR = PROJECT_ROOT / "generated_images"
+if GENERATED_IMAGES_DIR.exists():
+    app.mount("/generated_images", StaticFiles(directory=str(GENERATED_IMAGES_DIR)), name="generated_images")
+
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 if __name__ == "__main__":

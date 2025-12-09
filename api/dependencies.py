@@ -93,6 +93,19 @@ def get_db() -> Generator[Client, None, None]:
         pass
 
 
+def get_summarization_service():
+    """
+    Get summarization service instance.
+
+    Returns:
+        SummarizationService instance
+    """
+    from services.summarization import SummarizationService
+
+    client = get_supabase_client()
+    return SummarizationService(db_client=client)
+
+
 def get_current_user(
     # Add authentication dependency when implemented
     # token: str = Depends(oauth2_scheme)

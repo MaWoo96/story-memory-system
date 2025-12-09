@@ -73,6 +73,8 @@ class EventType(str, Enum):
 
 class FactType(str, Enum):
     TRAIT = "trait"
+    APPEARANCE = "appearance"
+    PERSONALITY = "personality"
     OCCUPATION = "occupation"
     POSSESSION = "possession"
     ABILITY = "ability"
@@ -117,6 +119,66 @@ class CharacterStatType(str, Enum):
     FEAR = "fear"
     RESPECT = "respect"
     RIVALRY = "rivalry"
+    LUST = "lust"
+    SUBMISSION = "submission"
+    DOMINANCE = "dominance"
+    JEALOUSY = "jealousy"
+    COMFORT = "comfort"
+
+
+class PhysicalStateType(str, Enum):
+    """Types of physical states to track."""
+    CLOTHING = "clothing"
+    POSITION = "position"
+    LOCATION_IN_SCENE = "location_in_scene"
+    PHYSICAL_CONTACT = "physical_contact"
+    AROUSAL = "arousal"
+    EXHAUSTION = "exhaustion"
+    INJURY = "injury"
+    INTOXICATION = "intoxication"
+
+
+class SceneType(str, Enum):
+    """Types of scenes for scene boundary tracking."""
+    DIALOGUE = "dialogue"
+    ACTION = "action"
+    INTIMATE = "intimate"
+    COMBAT = "combat"
+    EXPLORATION = "exploration"
+    SOCIAL = "social"
+    REST = "rest"
+    TRAVEL = "travel"
+    REVELATION = "revelation"
+
+
+class MemoryEmotion(str, Enum):
+    """Primary emotions for semantic memory tagging."""
+    JOY = "joy"
+    TENSION = "tension"
+    INTIMACY = "intimacy"
+    CONFLICT = "conflict"
+    FEAR = "fear"
+    SADNESS = "sadness"
+    EXCITEMENT = "excitement"
+    TENDERNESS = "tenderness"
+    ANGER = "anger"
+    SURPRISE = "surprise"
+    TRUST = "trust"
+    LUST = "lust"
+
+
+class MemoryTopic(str, Enum):
+    """Topics for semantic memory categorization."""
+    ROMANCE = "romance"
+    COMBAT = "combat"
+    DISCOVERY = "discovery"
+    RELATIONSHIP = "relationship"
+    BETRAYAL = "betrayal"
+    ACHIEVEMENT = "achievement"
+    LOSS = "loss"
+    SECRET = "secret"
+    PROMISE = "promise"
+    TRANSFORMATION = "transformation"
 
 
 # ============================================
@@ -221,6 +283,118 @@ class CharacterState(BaseModel):
     max: int = Field(description="Maximum value")
     label: Optional[str] = Field(description="Descriptive label", default=None)
     change: Optional[str] = Field(description="Change this session (e.g., '+25')", default=None)
+    reason: Optional[str] = Field(description="Why this changed", default=None)
+
+
+# ============================================
+# PHYSICAL STATE TRACKING (NSFW-aware)
+# ============================================
+
+
+class PhysicalStateItem(BaseModel):
+    """Single physical state for a character."""
+    state_type: PhysicalStateType = Field(description="Type of physical state")
+    value: str = Field(description="Current state value")
+    details: Optional[str] = Field(description="Additional details", default=None)
+
+
+class CharacterPhysicalState(BaseModel):
+    """Physical states for a character during a scene."""
+    character: str = Field(description="Character name (or 'protagonist')")
+    clothing: list[str] = Field(
+        description="Current clothing items worn (empty = naked)",
+        default_factory=list
+    )
+    position: Optional[str] = Field(
+        description="Physical position/posture (standing, sitting, lying, etc.)",
+        default=None
+    )
+    location_in_scene: Optional[str] = Field(
+        description="Where in the current location (on bed, by window, etc.)",
+        default=None
+    )
+    physical_contact: list[str] = Field(
+        description="Ongoing physical contact with others",
+        default_factory=list
+    )
+    temporary_states: list[str] = Field(
+        description="Temporary conditions (arousal level, exhaustion, etc.)",
+        default_factory=list
+    )
+
+
+class IntimacyMetrics(BaseModel):
+    """Multi-dimensional relationship metrics beyond basic affection."""
+    character: str = Field(description="Character name")
+    affection: int = Field(description="Emotional attachment (0-100)", ge=0, le=100)
+    trust: int = Field(description="How much they trust protagonist (0-100)", ge=0, le=100)
+    lust: int = Field(description="Physical attraction/desire (0-100)", ge=0, le=100, default=0)
+    comfort: int = Field(description="Comfort level around protagonist (0-100)", ge=0, le=100, default=50)
+    submission: Optional[int] = Field(
+        description="Submission dynamic if relevant (0-100)",
+        ge=0, le=100, default=None
+    )
+    dominance: Optional[int] = Field(
+        description="Dominance dynamic if relevant (0-100)",
+        ge=0, le=100, default=None
+    )
+    jealousy: int = Field(description="Current jealousy level (0-100)", ge=0, le=100, default=0)
+    changes_this_session: list[str] = Field(
+        description="What changed and why",
+        default_factory=list
+    )
+
+
+# ============================================
+# SCENE STATE TRACKING
+# ============================================
+
+
+class SceneState(BaseModel):
+    """Track ongoing scene context."""
+    scene_type: SceneType = Field(description="Type of scene")
+    scene_active: bool = Field(description="Whether scene is still ongoing")
+    participants: list[str] = Field(description="Characters in the scene")
+    mood: Optional[str] = Field(description="Scene emotional tone", default=None)
+    interrupted: bool = Field(description="Was scene interrupted?", default=False)
+    consent_established: list[str] = Field(
+        description="What has been established as acceptable (for intimate scenes)",
+        default_factory=list
+    )
+
+
+# ============================================
+# SEMANTIC MEMORY (SpicyChat pattern)
+# ============================================
+
+
+class SemanticMemory(BaseModel):
+    """Compressed thematic memory unit (not raw text)."""
+    memory_text: str = Field(
+        description="Compressed memory (1-2 sentences max)",
+        max_length=500
+    )
+    characters_involved: list[str] = Field(
+        description="Characters in this memory",
+        default_factory=list
+    )
+    primary_emotion: MemoryEmotion = Field(description="Dominant emotion")
+    topics: list[MemoryTopic] = Field(
+        description="Relevant topics",
+        default_factory=list
+    )
+    importance: float = Field(
+        description="How important (0.0-1.0)",
+        ge=0.0, le=1.0
+    )
+    setup_for_payoff: bool = Field(
+        description="Is this a setup that needs future payoff?",
+        default=False
+    )
+    payoff_for: Optional[str] = Field(
+        description="If this pays off an earlier setup, reference it",
+        default=None
+    )
 
 
 class WorldState(BaseModel):
@@ -243,3 +417,21 @@ class StoryExtraction(BaseModel):
     world_state: WorldState = Field(description="Current world/time state")
     session_summary: str = Field(description="2-3 paragraph summary")
     key_moments: list[str] = Field(description="3-7 most significant moments")
+
+    # New NSFW-aware fields
+    physical_states: list[CharacterPhysicalState] = Field(
+        description="Physical states of characters at end of session",
+        default_factory=list
+    )
+    intimacy_metrics: list[IntimacyMetrics] = Field(
+        description="Multi-dimensional relationship metrics",
+        default_factory=list
+    )
+    scene_state: Optional[SceneState] = Field(
+        description="Current scene state if scene is ongoing",
+        default=None
+    )
+    semantic_memories: list[SemanticMemory] = Field(
+        description="Compressed thematic memories from this session",
+        default_factory=list
+    )

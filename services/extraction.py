@@ -26,7 +26,38 @@ IMPORTANCE SCORING:
 - 0.7-0.8: Significant recurring elements, important NPCs
 - 0.5-0.6: Useful context, minor characters with potential
 - 0.3-0.4: Background flavor, mentioned once
-- 0.1-0.2: Trivial mentions, atmospheric details"""
+- 0.1-0.2: Trivial mentions, atmospheric details
+
+PHYSICAL STATE EXTRACTION:
+- Track clothing state for relevant characters (what they're wearing, or if undressed)
+- Track physical positions (standing, sitting, lying down, etc.)
+- Track location within scene (by the window, on the bed, etc.)
+- Track ongoing physical contact between characters
+- Track temporary states (arousal, exhaustion, intoxication, etc.)
+- Use clinical/neutral language for physical states
+
+INTIMACY METRICS:
+- Extract multi-dimensional relationship values when evidence supports them:
+  - affection: emotional attachment (0-100)
+  - trust: how much they trust protagonist (0-100)
+  - lust: physical attraction/desire (0-100)
+  - comfort: comfort level around protagonist (0-100)
+  - jealousy: current jealousy level (0-100)
+  - submission/dominance: only if story involves such dynamics (0-100)
+- Include WHY metrics changed in the changes_this_session field
+
+SCENE STATE:
+- Identify scene type: dialogue, action, intimate, combat, exploration, social, rest, travel, revelation
+- Note if scene is ongoing or concluded
+- List participants
+- Note consent/boundaries established in intimate scenes
+
+SEMANTIC MEMORIES:
+- Create compressed 1-2 sentence memories for significant moments
+- Tag with primary emotion: joy, tension, intimacy, conflict, fear, sadness, excitement, tenderness, anger, surprise, trust, lust
+- Tag with topics: romance, combat, discovery, relationship, betrayal, achievement, loss, secret, promise, transformation
+- Mark setup_for_payoff=true for events that need future resolution (promises, threats, secrets)
+- Mark payoff_for if this moment resolves an earlier setup"""
 
 
 class ExtractionService:
@@ -77,7 +108,7 @@ class ExtractionService:
 
         # Call Grok 4.1 Fast with structured output
         completion = self.client.beta.chat.completions.parse(
-            model="grok-4.1-fast-reasoning",
+            model="grok-4-1-fast-reasoning",
             messages=[
                 {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}

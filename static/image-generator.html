@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Image Generator</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: 200px 1fr 1fr;
+            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1400px) {
+            .app-container {
+                grid-template-columns: 1fr 1fr;
+            }
+            .gallery-panel {
+                grid-column: 1 / -1;
+                grid-row: 3;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            grid-column: 1 / -1;
+            font-size: 1.8rem;
+            background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h2 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: #feca57;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Gallery Panel */
+        .gallery-panel {
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .gallery-item {
+            position: relative;
+            aspect-ratio: 0.7;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .gallery-item:hover {
+            border-color: #feca57;
+            transform: scale(1.02);
+        }
+
+        .gallery-item.selected {
+            border-color: #ff6b6b;
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-item .overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 4px;
+            background: rgba(0,0,0,0.7);
+            font-size: 0.65rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .gallery-item:hover .overlay {
+            opacity: 1;
+        }
+
+        .gallery-item .delete-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(255, 107, 107, 0.8);
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 12px;
+            color: white;
+        }
+
+        .gallery-item:hover .delete-btn {
+            opacity: 1;
+        }
+
+        .gallery-empty {
+            text-align: center;
+            color: rgba(255,255,255,0.4);
+            padding: 20px;
+            font-size: 0.85rem;
+        }
+
+        /* Natural Language Input */
+        .prompt-section {
+            margin-bottom: 16px;
+        }
+
+        .prompt-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 0.9rem;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        .prompt-input:focus {
+            outline: none;
+            border-color: #feca57;
+        }
+
+        .prompt-input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Presets */
+        .presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .preset-btn {
+            padding: 6px 12px;
+            border-radius: 16px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.75rem;
+        }
+
+        .preset-btn:hover {
+            background: rgba(254, 202, 87, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .preset-btn.active {
+            background: linear-gradient(135deg, #ff6b6b, #feca57);
+            color: #1a1a2e;
+            font-weight: 600;
+        }
+
+        /* Sliders */
+        .slider-group {
+            margin-bottom: 14px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 0.8rem;
+        }
+
+        .slider-value {
+            color: #feca57;
+            font-weight: 600;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff6b6b, #feca57);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Toggle Options */
+        .toggle-group {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .toggle-btn {
+            padding: 8px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            background: transparent;
+            color: #e0e0e0;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+
+        .toggle-btn:hover {
+            border-color: rgba(254, 202, 87, 0.5);
+        }
+
+        .toggle-btn.active {
+            border-color: #feca57;
+            background: rgba(254, 202, 87, 0.15);
+            color: #feca57;
+        }
+
+        /* Seed Controls */
+        .seed-controls {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+
+        .seed-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .seed-input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 0.85rem;
+            font-family: monospace;
+        }
+
+        .seed-btn {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .seed-btn:hover {
+            background: rgba(254, 202, 87, 0.3);
+        }
+
+        .seed-btn.locked {
+            background: rgba(255, 107, 107, 0.3);
+            color: #ff6b6b;
+        }
+
+        .seed-variation-btns {
+            display: flex;
+            gap: 6px;
+        }
+
+        .seed-variation-btns button {
+            flex: 1;
+            padding: 6px;
+            border-radius: 6px;
+            border: none;
+            background: rgba(255, 255, 255, 0.08);
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+        }
+
+        .seed-variation-btns button:hover {
+            background: rgba(72, 219, 251, 0.3);
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: grid;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: 14px 24px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #ff6b6b, #feca57);
+            color: #1a1a2e;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(254, 202, 87, 0.3);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .secondary-btn {
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(72, 219, 251, 0.2);
+            color: #48dbfb;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .secondary-btn:hover {
+            background: rgba(72, 219, 251, 0.3);
+        }
+
+        .secondary-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .variation-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        /* Result Panel */
+        .result-area {
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-image {
+            max-width: 100%;
+            max-height: 550px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .placeholder {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.3);
+            padding: 30px;
+        }
+
+        .placeholder-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #feca57;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #feca57;
+            font-size: 0.85rem;
+        }
+
+        /* Prompt Preview */
+        .prompt-preview {
+            margin-top: 12px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.5);
+            max-height: 80px;
+            overflow-y: auto;
+            word-break: break-word;
+        }
+
+        .prompt-preview-label {
+            color: #feca57;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        /* Image Info */
+        .image-info {
+            margin-top: 12px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            font-size: 0.75rem;
+            width: 100%;
+        }
+
+        .image-info p {
+            margin: 3px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .image-info span {
+            color: #feca57;
+        }
+
+        /* Error */
+        .error {
+            color: #ff6b6b;
+            padding: 16px;
+            background: rgba(255, 107, 107, 0.1);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        /* Current Base Indicator */
+        .current-base {
+            background: rgba(72, 219, 251, 0.1);
+            border: 1px solid rgba(72, 219, 251, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 12px;
+            font-size: 0.8rem;
+        }
+
+        .current-base-label {
+            color: #48dbfb;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .current-base-seed {
+            font-family: monospace;
+            color: #feca57;
+        }
+
+        .clear-base-btn {
+            margin-top: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: none;
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 0.7rem;
+        }
+
+        /* Multi-Character Composer */
+        .multi-char-composer {
+            background: rgba(72, 219, 251, 0.1);
+            border: 1px solid rgba(72, 219, 251, 0.3);
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+
+        .char-slot {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .char-slot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .char-slot-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .char-slot-position {
+            font-size: 0.7rem;
+            color: #48dbfb;
+            background: rgba(72, 219, 251, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .char-slot input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 0.8rem;
+        }
+
+        .char-slot input:focus {
+            outline: none;
+            border-color: #48dbfb;
+        }
+
+        .char-slot input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .char-presets {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+
+        .char-preset-btn {
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            font-size: 0.65rem;
+        }
+
+        .char-preset-btn:hover {
+            background: rgba(254, 202, 87, 0.3);
+            color: #feca57;
+        }
+
+        /* LoRA Browser Panel */
+        .lora-browser {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .lora-browser-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .lora-browser-title {
+            font-size: 0.85rem;
+            color: #feca57;
+        }
+
+        .lora-detect-btn {
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: none;
+            background: linear-gradient(135deg, #48dbfb, #0abde3);
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .lora-detect-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .lora-category {
+            margin-bottom: 10px;
+        }
+
+        .lora-category-title {
+            font-size: 0.75rem;
+            color: #48dbfb;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            padding-bottom: 2px;
+            border-bottom: 1px solid rgba(72, 219, 251, 0.3);
+        }
+
+        .lora-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 4px;
+            transition: all 0.2s;
+        }
+
+        .lora-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .lora-item.active {
+            background: rgba(254, 202, 87, 0.2);
+            border: 1px solid rgba(254, 202, 87, 0.5);
+        }
+
+        .lora-item.suggested {
+            background: rgba(72, 219, 251, 0.15);
+            border: 1px solid rgba(72, 219, 251, 0.4);
+        }
+
+        .lora-checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: #feca57;
+        }
+
+        .lora-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .lora-name {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .lora-desc {
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0.5);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .lora-weight-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .lora-weight-input {
+            width: 50px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 0.7rem;
+            text-align: center;
+        }
+
+        .lora-auto-badge {
+            font-size: 0.55rem;
+            padding: 2px 4px;
+            background: rgba(16, 172, 132, 0.3);
+            color: #10ac84;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .lora-unavailable-badge {
+            font-size: 0.55rem;
+            padding: 2px 4px;
+            background: rgba(255, 99, 71, 0.3);
+            color: #ff6347;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .lora-conflict-badge {
+            cursor: help;
+        }
+
+        .lora-conflict-warning {
+            font-size: 0.6rem;
+            color: #ffa500;
+            margin-top: 2px;
+        }
+
+        .lora-item.unavailable {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .lora-item.unavailable .lora-checkbox {
+            cursor: not-allowed;
+        }
+
+        .lora-item.has-conflict {
+            border-color: rgba(255, 165, 0, 0.6);
+            background: rgba(255, 165, 0, 0.1);
+        }
+
+        .lora-suggested-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(72, 219, 251, 0.2);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 0.7rem;
+            color: #48dbfb;
+        }
+
+        .lora-active-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .lora-active-tag {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: rgba(254, 202, 87, 0.2);
+            border-radius: 4px;
+            font-size: 0.65rem;
+            color: #feca57;
+        }
+
+        .lora-active-tag .remove-lora {
+            cursor: pointer;
+            opacity: 0.6;
+        }
+
+        .lora-active-tag .remove-lora:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <h1>Story Image Generator</h1>
+
+        <!-- Gallery Panel -->
+        <div class="panel gallery-panel">
+            <h2>Gallery</h2>
+            <div id="galleryGrid" class="gallery-grid">
+                <div class="gallery-empty">
+                    No images yet.<br>Generate some!
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="panel">
+            <h2>Describe Your Scene</h2>
+
+            <div class="prompt-section">
+                <textarea
+                    id="naturalPrompt"
+                    class="prompt-input"
+                    placeholder="Describe what you want...
+
+Example: A busty elf milf relaxing at a hot spring"
+                ></textarea>
+            </div>
+
+            <h2>Quick Presets</h2>
+            <div class="presets">
+                <button class="preset-btn" data-preset="beach">Beach Babe</button>
+                <button class="preset-btn" data-preset="bedroom">Bedroom</button>
+                <button class="preset-btn" data-preset="maid">Sexy Maid</button>
+                <button class="preset-btn" data-preset="onsen">Hot Spring</button>
+                <button class="preset-btn" data-preset="cowgirl">Cowgirl</button>
+                <button class="preset-btn" data-preset="forest">Forest Elf</button>
+            </div>
+
+            <h2>Adjustments</h2>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Lewdness Level</span>
+                    <span class="slider-value" id="lewdnessValue">Medium</span>
+                </div>
+                <input type="range" class="slider" id="lewdness" min="0" max="4" value="2">
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Breast Size</span>
+                    <span class="slider-value" id="breastSizeValue">Huge</span>
+                </div>
+                <input type="range" class="slider" id="breastSize" min="0" max="4" value="3">
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span>Expression Intensity</span>
+                    <span class="slider-value" id="expressionValue">Seductive</span>
+                </div>
+                <input type="range" class="slider" id="expression" min="0" max="4" value="2">
+            </div>
+
+            <h2>Subject Count</h2>
+            <div class="toggle-group">
+                <button class="toggle-btn active" data-subject="1girl">1 Girl</button>
+                <button class="toggle-btn" data-subject="2girls">2 Girls</button>
+                <button class="toggle-btn" data-subject="3girls">3 Girls</button>
+                <button class="toggle-btn" data-subject="group">Group (4+)</button>
+            </div>
+
+            <!-- Multi-Character Composer (shown when 2+ subjects) -->
+            <div id="multiCharComposer" class="multi-char-composer" style="display: none;">
+                <h2>Character Descriptions</h2>
+                <p style="font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-bottom: 10px;">
+                    Describe each character separately. Use hair color, position, etc.
+                </p>
+                <div id="charSlots">
+                    <!-- Character slots will be added here dynamically -->
+                </div>
+            </div>
+
+            <h2>Special Tags</h2>
+            <div class="toggle-group">
+                <button class="toggle-btn" data-special="futanari" id="futaToggle">Futanari</button>
+                <button class="toggle-btn" data-special="yuri" id="yuriToggle">Yuri</button>
+            </div>
+
+            <h2>Body Type</h2>
+            <div class="toggle-group">
+                <button class="toggle-btn active" data-body="milf">Milf / Mature</button>
+                <button class="toggle-btn" data-body="curvy">Curvy</button>
+                <button class="toggle-btn" data-body="thicc">Extra Thicc</button>
+                <button class="toggle-btn" data-body="slim">Slim Curvy</button>
+            </div>
+
+            <h2>Setting</h2>
+            <div class="toggle-group">
+                <button class="toggle-btn" data-setting="beach">Beach</button>
+                <button class="toggle-btn active" data-setting="bedroom">Bedroom</button>
+                <button class="toggle-btn" data-setting="onsen">Hot Spring</button>
+                <button class="toggle-btn" data-setting="forest">Forest</button>
+            </div>
+
+            <h2>Pose LoRA</h2>
+            <p style="font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-bottom: 8px;">
+                Special LoRAs for difficult poses (requires LoRA file)
+            </p>
+            <div class="toggle-group">
+                <button class="toggle-btn" data-pose="none">None</button>
+                <button class="toggle-btn" data-pose="matingface">Mating Press (face)</button>
+                <button class="toggle-btn" data-pose="cowgirl">Cowgirl POV</button>
+                <button class="toggle-btn" data-pose="doggystyle">Doggystyle</button>
+            </div>
+
+            <!-- LoRA Browser Panel -->
+            <h2>LoRA Library</h2>
+            <p style="font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-bottom: 8px;">
+                Auto-detects from prompt or manually select LoRAs
+            </p>
+            <div class="lora-browser" id="loraBrowser">
+                <div class="lora-browser-header">
+                    <span class="lora-browser-title">Available LoRAs</span>
+                    <button class="lora-detect-btn" onclick="detectLorasFromPrompt()">🔍 Auto-Detect</button>
+                </div>
+                <div id="loraSuggestions" style="display: none;"></div>
+                <div id="loraCategories">
+                    <div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.5);">
+                        Loading LoRAs...
+                    </div>
+                </div>
+                <div id="activeLoraList" class="lora-active-list" style="display: none;">
+                    <span style="color: rgba(255,255,255,0.5); font-size: 0.65rem; width: 100%;">Active:</span>
+                </div>
+            </div>
+
+            <!-- Seed Controls -->
+            <h2>Seed Control</h2>
+            <div class="seed-controls">
+                <div class="seed-row">
+                    <input type="text" id="seedInput" class="seed-input" placeholder="Random">
+                    <button id="lockSeedBtn" class="seed-btn">🔓</button>
+                    <button id="randomSeedBtn" class="seed-btn">🎲</button>
+                </div>
+                <div class="seed-variation-btns">
+                    <button onclick="adjustSeed(-10)">-10</button>
+                    <button onclick="adjustSeed(-1)">-1</button>
+                    <button onclick="adjustSeed(1)">+1</button>
+                    <button onclick="adjustSeed(10)">+10</button>
+                </div>
+            </div>
+
+            <!-- Current Base Indicator -->
+            <div id="currentBase" class="current-base" style="display: none;">
+                <div class="current-base-label">Working from:</div>
+                <div class="current-base-seed">Seed: <span id="baseSeedDisplay">-</span></div>
+                <button class="clear-base-btn" onclick="clearBase()">Clear Base</button>
+            </div>
+
+            <div class="prompt-preview">
+                <span class="prompt-preview-label">Generated Prompt:</span>
+                <span id="promptPreview">Adjust settings to see the prompt...</span>
+            </div>
+
+            <div class="action-buttons">
+                <button class="generate-btn" id="generateBtn">
+                    Generate Image
+                </button>
+                <div class="variation-buttons">
+                    <button class="secondary-btn" id="variationBtn" disabled>
+                        Create Variation
+                    </button>
+                    <button class="secondary-btn" id="progressBtn" disabled>
+                        Progress Scene
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Result Panel -->
+        <div class="panel">
+            <h2>Generated Image</h2>
+
+            <div class="result-area" id="resultArea">
+                <div class="placeholder">
+                    <div class="placeholder-icon">🎨</div>
+                    <p>Your generated image will appear here</p>
+                    <p style="margin-top: 8px; font-size: 0.8rem;">~3-4 minutes generation time</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '/api/images';
+
+        // State
+        let currentBody = 'milf';
+        let currentSetting = 'bedroom';
+        let currentSubject = '1girl';
+        let futanariEnabled = false;
+        let yuriEnabled = false;
+        let seedLocked = false;
+        let lastGeneratedSeed = null;
+        let lastGeneratedPrompt = null;
+        let baseImage = null; // The image we're building variations from
+
+        // LoRA Library State
+        let loraLibrary = [];  // All available LoRAs from API
+        let selectedLoras = {};  // Map of filename -> {weight, display_name}
+        let suggestedLoras = []; // LoRAs suggested by detection
+
+        // Slider value mappings
+        const LEWDNESS_LEVELS = ['Clothed', 'Teasing', 'Medium', 'Lewd', 'Explicit'];
+        const BREAST_SIZES = ['Medium', 'Large', 'Huge', 'Massive', 'Gigantic'];
+        const EXPRESSIONS = ['Neutral', 'Smiling', 'Seductive', 'Aroused', 'Ahegao'];
+
+        // Tag mappings for each level
+        const LEWDNESS_TAGS = {
+            0: ['clothed', 'modest outfit'],
+            1: ['cleavage', 'sideboob', 'short skirt'],
+            2: ['micro bikini', 'underboob', 'erect nipples visible through fabric', 'camel toe'],
+            3: ['nude', 'spread legs', 'presenting', 'nipples'],
+            4: ['nude', 'spread legs', 'presenting pussy', 'dripping', 'wet']
+        };
+
+        const BREAST_TAGS = {
+            0: ['medium breasts'],
+            1: ['large breasts'],
+            2: ['huge breasts'],
+            3: ['huge breasts, sagging breasts'],
+            4: ['gigantic breasts, sagging breasts, breasts apart']
+        };
+
+        const EXPRESSION_TAGS = {
+            0: ['neutral expression', 'looking at viewer'],
+            1: ['smile', 'looking at viewer'],
+            2: ['seductive smile', 'bedroom eyes', 'looking at viewer', 'blushing'],
+            3: ['open mouth', 'heavy breathing', 'blushing', 'sweat', 'aroused'],
+            4: ['ahegao', 'rolling eyes', 'tongue out', 'drooling', 'orgasm face', 'heart-shaped pupils']
+        };
+
+        const BODY_TAGS = {
+            milf: ['milf', 'mature female', 'thick thighs', 'wide hips', 'curvy'],
+            curvy: ['curvy', 'thick thighs', 'wide hips'],
+            thicc: ['plump', 'chubby', 'thick thighs', 'wide hips', 'curvy', 'soft body'],
+            slim: ['slim', 'slender', 'narrow waist', 'curvy']
+        };
+
+        const SETTING_TAGS = {
+            beach: ['beach', 'ocean', 'sunset lighting', 'wet skin', 'sand'],
+            bedroom: ['bedroom', 'bed', 'pillows', 'dim lighting', 'intimate'],
+            onsen: ['onsen', 'hot spring', 'steam', 'water', 'wet skin', 'relaxed'],
+            forest: ['forest', 'nature', 'dappled sunlight', 'trees', 'fantasy']
+        };
+
+        // Subject count tags - with emphasis for multi-character
+        const SUBJECT_TAGS = {
+            '1girl': ['1girl', 'solo'],
+            '2girls': ['(2girls:1.4)', '(multiple girls:1.3)', 'duo'],
+            '3girls': ['(3girls:1.4)', '(multiple girls:1.3)', 'trio', 'group'],
+            'group': ['(4girls:1.5)', '(multiple girls:1.4)', 'group', 'crowd']
+        };
+
+        // Position labels for multi-character composer
+        const POSITION_LABELS = {
+            '2girls': ['Left character', 'Right character'],
+            '3girls': ['Left character', 'Center character', 'Right character'],
+            'group': ['Far left', 'Center-left', 'Center-right', 'Far right']
+        };
+
+        // Character slot presets for quick fill
+        const CHAR_PRESETS = [
+            { label: 'Blonde', tags: 'blonde hair, blue eyes' },
+            { label: 'Brunette', tags: 'brown hair, green eyes' },
+            { label: 'Redhead', tags: 'red hair, amber eyes' },
+            { label: 'Dark', tags: 'black hair, dark skin' },
+            { label: 'Elf', tags: 'elf ears, silver hair' },
+            { label: 'Futa', tags: 'futanari, huge penis' }
+        ];
+
+        // Special modifier tags
+        const SPECIAL_TAGS = {
+            futanari: ['futanari', '(futa:1.3)', 'penis', 'huge penis', 'erection'],
+            yuri: ['yuri', 'girl on girl', '(lesbian:1.2)', 'kissing', 'intimate']
+        };
+
+        // Pose LoRA configurations - each has prompt tags AND LoRA to load
+        const POSE_LORAS = {
+            none: { tags: [], lora: null },
+            matingface: {
+                tags: ['MatingFaceER', '1boy', 'sex', 'mating press', 'penis', 'large penis'],
+                lora: { name: 'MatingFaceER.safetensors', weight: 1.0 },
+                description: 'Mating press with visible face'
+            },
+            cowgirl: {
+                tags: ['cowgirl position', 'girl on top', 'pov', 'straddling', 'riding'],
+                lora: { name: 'CowGirl.safetensors', weight: 0.8 },
+                description: 'POV cowgirl riding'
+            },
+            doggystyle: {
+                tags: ['doggystyle', 'sex from behind', 'on all fours', 'ass up'],
+                lora: null,  // Could add a LoRA later
+                description: 'Doggystyle position'
+            }
+        };
+
+        let currentPose = 'none';
+
+        // Dimensions based on subject count (landscape for groups)
+        const SUBJECT_DIMENSIONS = {
+            '1girl': { width: 832, height: 1216 },  // Portrait
+            '2girls': { width: 1216, height: 832 }, // Landscape
+            '3girls': { width: 1344, height: 768 }, // Wide landscape
+            'group': { width: 1536, height: 768 }   // Extra wide
+        };
+
+        const PRESETS = {
+            beach: {
+                prompt: 'A sexy milf in a tiny bikini at the beach, enjoying the sunset',
+                lewdness: 2,
+                breastSize: 3,
+                expression: 2,
+                body: 'milf',
+                setting: 'beach'
+            },
+            bedroom: {
+                prompt: 'A seductive milf waiting in bed, inviting pose',
+                lewdness: 3,
+                breastSize: 3,
+                expression: 3,
+                body: 'milf',
+                setting: 'bedroom'
+            },
+            maid: {
+                prompt: 'A busty maid bending over, cleaning, with a flirty look',
+                lewdness: 2,
+                breastSize: 3,
+                expression: 2,
+                body: 'curvy',
+                setting: 'bedroom'
+            },
+            onsen: {
+                prompt: 'A relaxed milf soaking in a hot spring, steam rising',
+                lewdness: 3,
+                breastSize: 3,
+                expression: 1,
+                body: 'milf',
+                setting: 'onsen'
+            },
+            cowgirl: {
+                prompt: 'POV cowgirl position, riding intensely',
+                lewdness: 4,
+                breastSize: 3,
+                expression: 4,
+                body: 'milf',
+                setting: 'bedroom'
+            },
+            forest: {
+                prompt: 'A mystical elf in an enchanted forest, ethereal beauty',
+                lewdness: 1,
+                breastSize: 2,
+                expression: 1,
+                body: 'slim',
+                setting: 'forest'
+            }
+        };
+
+        // DOM Elements
+        const naturalPrompt = document.getElementById('naturalPrompt');
+        const lewdnessSlider = document.getElementById('lewdness');
+        const breastSizeSlider = document.getElementById('breastSize');
+        const expressionSlider = document.getElementById('expression');
+        const promptPreview = document.getElementById('promptPreview');
+        const generateBtn = document.getElementById('generateBtn');
+        const variationBtn = document.getElementById('variationBtn');
+        const progressBtn = document.getElementById('progressBtn');
+        const resultArea = document.getElementById('resultArea');
+        const seedInput = document.getElementById('seedInput');
+        const lockSeedBtn = document.getElementById('lockSeedBtn');
+        const galleryGrid = document.getElementById('galleryGrid');
+
+        // Update slider labels
+        function updateSliderLabels() {
+            document.getElementById('lewdnessValue').textContent = LEWDNESS_LEVELS[lewdnessSlider.value];
+            document.getElementById('breastSizeValue').textContent = BREAST_SIZES[breastSizeSlider.value];
+            document.getElementById('expressionValue').textContent = EXPRESSIONS[expressionSlider.value];
+        }
+
+        // Build the final prompt
+        function buildPrompt() {
+            const userInput = naturalPrompt.value.trim();
+
+            // Detect if this is a detailed/raw prompt (long, contains commas, has specific tags)
+            // If so, use it directly with minimal additions
+            const isDetailedPrompt = userInput.length > 150 ||
+                                     (userInput.includes(',') && userInput.split(',').length > 5) ||
+                                     userInput.toLowerCase().includes('masterpiece') ||
+                                     userInput.toLowerCase().includes('futanari') ||
+                                     userInput.toLowerCase().includes('multiple girls') ||
+                                     userInput.toLowerCase().includes('group');
+
+            if (isDetailedPrompt) {
+                // Raw mode - use prompt directly, just ensure quality tags
+                let prompt = userInput;
+                if (!prompt.toLowerCase().includes('masterpiece')) {
+                    prompt = 'masterpiece, best quality, ' + prompt;
+                }
+                return prompt;
+            }
+
+            // Standard mode - build from sliders
+            const parts = ['masterpiece', 'best quality', 'absurdres'];
+
+            // Subject count - always use current setting
+            parts.push(...SUBJECT_TAGS[currentSubject]);
+
+            // Special modifiers (futanari, yuri)
+            if (futanariEnabled) {
+                parts.push(...SPECIAL_TAGS.futanari);
+            }
+            if (yuriEnabled && currentSubject !== '1girl') {
+                parts.push(...SPECIAL_TAGS.yuri);
+            }
+
+            // Body type
+            parts.push(...BODY_TAGS[currentBody]);
+
+            // Breast size
+            parts.push(...BREAST_TAGS[breastSizeSlider.value]);
+
+            // Lewdness/clothing
+            parts.push(...LEWDNESS_TAGS[lewdnessSlider.value]);
+
+            // Expression
+            parts.push(...EXPRESSION_TAGS[expressionSlider.value]);
+
+            // Sweat for higher lewdness
+            if (lewdnessSlider.value >= 2) {
+                parts.push('sweat', 'wet skin');
+            }
+
+            // Setting
+            parts.push(...SETTING_TAGS[currentSetting]);
+
+            // Pose LoRA tags (will also need to send LoRA to backend)
+            if (currentPose && currentPose !== 'none' && POSE_LORAS[currentPose]) {
+                parts.push(...POSE_LORAS[currentPose].tags);
+            }
+
+            // Add natural language elements if provided
+            if (userInput) {
+                const keywords = extractKeywords(userInput);
+                parts.push(...keywords);
+            }
+
+            // For multi-character, add BREAK-separated character descriptions
+            if (currentSubject !== '1girl') {
+                const multiCharDesc = buildMultiCharPrompt();
+                if (multiCharDesc) {
+                    // Insert character descriptions after base prompt
+                    const basePrompt = [...new Set(parts)].join(', ');
+                    return basePrompt + ' BREAK ' + multiCharDesc;
+                }
+            }
+
+            return [...new Set(parts)].join(', ');
+        }
+
+        // Simple keyword extraction from natural language
+        function extractKeywords(text) {
+            const keywords = [];
+            const lowerText = text.toLowerCase();
+
+            // Hair
+            if (lowerText.includes('blonde')) keywords.push('blonde hair');
+            if (lowerText.includes('brunette') || lowerText.includes('brown hair')) keywords.push('brown hair');
+            if (lowerText.includes('red hair') || lowerText.includes('redhead')) keywords.push('red hair');
+            if (lowerText.includes('black hair')) keywords.push('black hair');
+            if (lowerText.includes('long hair')) keywords.push('long hair');
+            if (lowerText.includes('short hair')) keywords.push('short hair');
+
+            // Eyes
+            if (lowerText.includes('blue eyes')) keywords.push('blue eyes');
+            if (lowerText.includes('green eyes')) keywords.push('green eyes');
+            if (lowerText.includes('red eyes')) keywords.push('red eyes');
+
+            // Race/Fantasy
+            if (lowerText.includes('elf')) keywords.push('elf', 'pointy ears');
+            if (lowerText.includes('dark skin') || lowerText.includes('tan')) keywords.push('dark skin', 'tan');
+
+            // Clothing hints
+            if (lowerText.includes('bikini')) keywords.push('bikini');
+            if (lowerText.includes('maid')) keywords.push('maid outfit', 'maid headdress');
+            if (lowerText.includes('naked') || lowerText.includes('nude')) keywords.push('nude');
+            if (lowerText.includes('lingerie')) keywords.push('lingerie', 'lace');
+
+            // Poses
+            if (lowerText.includes('lying') || lowerText.includes('on back')) keywords.push('lying on back', 'on bed');
+            if (lowerText.includes('standing')) keywords.push('standing');
+            if (lowerText.includes('sitting')) keywords.push('sitting');
+            if (lowerText.includes('pov') || lowerText.includes('first person')) keywords.push('pov');
+
+            return keywords;
+        }
+
+        // =============================================
+        // MULTI-CHARACTER COMPOSER
+        // =============================================
+
+        // Show/hide the multi-character composer based on subject count
+        function updateMultiCharComposer() {
+            const composer = document.getElementById('multiCharComposer');
+            const charSlots = document.getElementById('charSlots');
+
+            if (currentSubject === '1girl') {
+                composer.style.display = 'none';
+                return;
+            }
+
+            composer.style.display = 'block';
+
+            // Get number of characters
+            const charCount = currentSubject === '2girls' ? 2 :
+                             currentSubject === '3girls' ? 3 : 4;
+
+            // Build character slots
+            const positions = POSITION_LABELS[currentSubject] || [];
+            let slotsHTML = '';
+
+            for (let i = 0; i < charCount; i++) {
+                const position = positions[i] || `Character ${i + 1}`;
+                const existingValue = document.getElementById(`charSlot${i}`)?.value || '';
+
+                slotsHTML += `
+                    <div class="char-slot">
+                        <div class="char-slot-header">
+                            <span class="char-slot-label">Character ${i + 1}</span>
+                            <span class="char-slot-position">${position}</span>
+                        </div>
+                        <input type="text" id="charSlot${i}"
+                               placeholder="e.g., blonde hair, blue eyes, on left side"
+                               value="${existingValue}"
+                               oninput="updatePromptPreview()">
+                        <div class="char-presets">
+                            ${CHAR_PRESETS.map(p =>
+                                `<button type="button" class="char-preset-btn"
+                                         onclick="fillCharSlot(${i}, '${p.tags}')">${p.label}</button>`
+                            ).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            charSlots.innerHTML = slotsHTML;
+        }
+
+        // Fill a character slot with preset tags
+        function fillCharSlot(slotIndex, tags) {
+            const slot = document.getElementById(`charSlot${slotIndex}`);
+            if (slot) {
+                // Append to existing content if not empty
+                if (slot.value.trim()) {
+                    slot.value = slot.value.trim() + ', ' + tags;
+                } else {
+                    slot.value = tags;
+                }
+                updatePromptPreview();
+            }
+        }
+
+        // Build multi-character prompt with BREAK tokens
+        function buildMultiCharPrompt() {
+            const charCount = currentSubject === '2girls' ? 2 :
+                             currentSubject === '3girls' ? 3 : 4;
+
+            const positions = POSITION_LABELS[currentSubject] || [];
+            const charDescriptions = [];
+
+            for (let i = 0; i < charCount; i++) {
+                const slot = document.getElementById(`charSlot${i}`);
+                const desc = slot?.value.trim() || '';
+                const posHint = positions[i]?.toLowerCase().replace(' character', '') || '';
+
+                if (desc) {
+                    // Add position hint if not already mentioned
+                    let fullDesc = desc;
+                    if (posHint && !desc.toLowerCase().includes(posHint) && !desc.toLowerCase().includes('left') && !desc.toLowerCase().includes('right') && !desc.toLowerCase().includes('center')) {
+                        fullDesc = `(${posHint} side:1.2), ${desc}`;
+                    }
+                    charDescriptions.push(fullDesc);
+                }
+            }
+
+            // If we have character descriptions, join them with BREAK
+            if (charDescriptions.length > 0) {
+                return charDescriptions.join(' BREAK ');
+            }
+
+            return '';
+        }
+
+        // Check if prompt is in raw/detailed mode
+        function isRawMode() {
+            const userInput = naturalPrompt.value.trim();
+            return userInput.length > 150 ||
+                   (userInput.includes(',') && userInput.split(',').length > 5) ||
+                   userInput.toLowerCase().includes('masterpiece') ||
+                   userInput.toLowerCase().includes('futanari') ||
+                   userInput.toLowerCase().includes('multiple girls') ||
+                   userInput.toLowerCase().includes('group');
+        }
+
+        // Update prompt preview
+        function updatePromptPreview() {
+            const prompt = buildPrompt();
+            const rawMode = isRawMode();
+
+            // Update label to show mode
+            const label = document.querySelector('.prompt-preview-label');
+            if (rawMode) {
+                label.textContent = '🎯 RAW MODE - Using your prompt directly:';
+                label.style.color = '#48dbfb';
+            } else {
+                label.textContent = '⚙️ SLIDER MODE - Building from settings:';
+                label.style.color = '#feca57';
+            }
+
+            promptPreview.textContent = prompt;
+        }
+
+        // Toggle button handling
+        function setupToggles() {
+            // Subject count toggles (radio-style)
+            document.querySelectorAll('[data-subject]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-subject]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentSubject = btn.dataset.subject;
+                    updateMultiCharComposer();  // Show/hide character composer
+                    updatePromptPreview();
+                });
+            });
+
+            // Special toggles (checkbox-style)
+            document.querySelectorAll('[data-special]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    btn.classList.toggle('active');
+                    const special = btn.dataset.special;
+                    if (special === 'futanari') {
+                        futanariEnabled = btn.classList.contains('active');
+                    } else if (special === 'yuri') {
+                        yuriEnabled = btn.classList.contains('active');
+                    }
+                    updatePromptPreview();
+                });
+            });
+
+            document.querySelectorAll('[data-body]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-body]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentBody = btn.dataset.body;
+                    updatePromptPreview();
+                });
+            });
+
+            document.querySelectorAll('[data-setting]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-setting]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentSetting = btn.dataset.setting;
+                    updatePromptPreview();
+                });
+            });
+
+            // Pose LoRA toggles (radio-style)
+            document.querySelectorAll('[data-pose]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-pose]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentPose = btn.dataset.pose;
+                    updatePromptPreview();
+                });
+            });
+        }
+
+        // Preset handling
+        function setupPresets() {
+            document.querySelectorAll('[data-preset]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const preset = PRESETS[btn.dataset.preset];
+                    if (!preset) return;
+
+                    naturalPrompt.value = preset.prompt;
+                    lewdnessSlider.value = preset.lewdness;
+                    breastSizeSlider.value = preset.breastSize;
+                    expressionSlider.value = preset.expression;
+
+                    document.querySelectorAll('[data-body]').forEach(b => b.classList.remove('active'));
+                    document.querySelector(`[data-body="${preset.body}"]`)?.classList.add('active');
+                    currentBody = preset.body;
+
+                    document.querySelectorAll('[data-setting]').forEach(b => b.classList.remove('active'));
+                    document.querySelector(`[data-setting="${preset.setting}"]`)?.classList.add('active');
+                    currentSetting = preset.setting;
+
+                    updateSliderLabels();
+                    updatePromptPreview();
+
+                    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                });
+            });
+        }
+
+        // Seed functions
+        function adjustSeed(delta) {
+            let currentSeed = parseInt(seedInput.value) || lastGeneratedSeed || Math.floor(Math.random() * 999999999);
+            currentSeed = Math.max(0, currentSeed + delta);
+            seedInput.value = currentSeed;
+        }
+
+        function toggleSeedLock() {
+            seedLocked = !seedLocked;
+            lockSeedBtn.textContent = seedLocked ? '🔒' : '🔓';
+            lockSeedBtn.classList.toggle('locked', seedLocked);
+        }
+
+        function randomizeSeed() {
+            seedInput.value = '';
+            seedInput.placeholder = 'Random';
+        }
+
+        // =============================================
+        // LORA LIBRARY FUNCTIONS
+        // =============================================
+
+        async function loadLoraLibrary() {
+            try {
+                const response = await fetch(`${API_BASE}/loras?available_only=true`);
+                const data = await response.json();
+                loraLibrary = data.loras || [];
+                renderLoraCategories();
+            } catch (error) {
+                console.error('Failed to load LoRA library:', error);
+                document.getElementById('loraCategories').innerHTML = `
+                    <div style="color: #ff6b6b; font-size: 0.75rem;">
+                        Failed to load LoRAs. <a href="#" onclick="loadLoraLibrary()" style="color: #48dbfb;">Retry</a>
+                    </div>
+                `;
+            }
+        }
+
+        function renderLoraCategories() {
+            const container = document.getElementById('loraCategories');
+
+            // Group by category
+            const byCategory = {};
+            loraLibrary.forEach(lora => {
+                if (!byCategory[lora.category]) {
+                    byCategory[lora.category] = [];
+                }
+                byCategory[lora.category].push(lora);
+            });
+
+            // Category display order
+            const categoryOrder = ['body', 'style', 'pose', 'effect', 'clothing', 'quality'];
+            const sortedCategories = Object.keys(byCategory).sort((a, b) => {
+                return categoryOrder.indexOf(a) - categoryOrder.indexOf(b);
+            });
+
+            container.innerHTML = sortedCategories.map(category => `
+                <div class="lora-category">
+                    <div class="lora-category-title">${category}</div>
+                    ${byCategory[category].map(lora => renderLoraItem(lora)).join('')}
+                </div>
+            `).join('');
+        }
+
+        function renderLoraItem(lora, isSuggested = false) {
+            const isSelected = selectedLoras[lora.filename];
+            const weight = isSelected ? selectedLoras[lora.filename].weight : lora.default_weight;
+            const isAvailable = lora.available !== false;
+
+            // Check for conflicts with currently selected LoRAs
+            const conflicts = (lora.conflicts_with || []).filter(conflictName =>
+                selectedLoras[conflictName]
+            );
+            const hasConflict = conflicts.length > 0;
+            const conflictNames = conflicts.map(f => {
+                const conflictLora = loraLibrary.find(l => l.filename === f);
+                return conflictLora ? conflictLora.display_name : f;
+            }).join(', ');
+
+            return `
+                <div class="lora-item ${isSelected ? 'active' : ''} ${isSuggested ? 'suggested' : ''} ${!isAvailable ? 'unavailable' : ''} ${hasConflict ? 'has-conflict' : ''}"
+                     data-filename="${lora.filename}"
+                     ${!isAvailable ? 'title="LoRA file not found on disk"' : ''}>
+                    <input type="checkbox" class="lora-checkbox"
+                           ${isSelected ? 'checked' : ''}
+                           ${!isAvailable ? 'disabled' : ''}
+                           onchange="toggleLora('${lora.filename}', this.checked)">
+                    <div class="lora-info">
+                        <div class="lora-name">
+                            ${lora.display_name}
+                            ${lora.auto_enable ? '<span class="lora-auto-badge">auto</span>' : ''}
+                            ${!isAvailable ? '<span class="lora-unavailable-badge">missing</span>' : ''}
+                            ${hasConflict ? `<span class="lora-conflict-badge" title="Conflicts with: ${conflictNames}">⚠️</span>` : ''}
+                        </div>
+                        <div class="lora-desc" title="${lora.description}">${lora.description}</div>
+                        ${hasConflict ? `<div class="lora-conflict-warning">Conflicts with: ${conflictNames}</div>` : ''}
+                    </div>
+                    <div class="lora-weight-control">
+                        <input type="number" class="lora-weight-input"
+                               value="${weight}"
+                               step="0.1"
+                               min="${lora.min_weight}"
+                               max="${lora.max_weight}"
+                               onchange="updateLoraWeight('${lora.filename}', this.value)"
+                               ${!isSelected || !isAvailable ? 'disabled' : ''}>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleLora(filename, enabled) {
+            const lora = loraLibrary.find(l => l.filename === filename);
+            if (!lora) return;
+
+            if (enabled) {
+                selectedLoras[filename] = {
+                    weight: lora.default_weight,
+                    display_name: lora.display_name
+                };
+            } else {
+                delete selectedLoras[filename];
+            }
+
+            // Re-render to update UI state
+            renderLoraCategories();
+            updateActiveLoraTags();
+        }
+
+        function updateLoraWeight(filename, weight) {
+            if (selectedLoras[filename]) {
+                const lora = loraLibrary.find(l => l.filename === filename);
+                let parsedWeight = parseFloat(weight);
+
+                // Clamp to valid range
+                if (lora) {
+                    const minWeight = lora.min_weight ?? 0.0;
+                    const maxWeight = lora.max_weight ?? 2.0;
+                    parsedWeight = Math.max(minWeight, Math.min(maxWeight, parsedWeight));
+                } else {
+                    // Default bounds
+                    parsedWeight = Math.max(0.0, Math.min(2.0, parsedWeight));
+                }
+
+                selectedLoras[filename].weight = parsedWeight;
+                updateActiveLoraTags();
+
+                // Update the input field to show clamped value
+                const input = document.querySelector(`input[onchange*="${filename}"]`);
+                if (input) input.value = parsedWeight;
+            }
+        }
+
+        function updateActiveLoraTags() {
+            const container = document.getElementById('activeLoraList');
+            const selected = Object.entries(selectedLoras);
+
+            if (selected.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'flex';
+            container.innerHTML = `
+                <span style="color: rgba(255,255,255,0.5); font-size: 0.65rem; width: 100%;">Active:</span>
+                ${selected.map(([filename, data]) => `
+                    <span class="lora-active-tag">
+                        ${data.display_name} (${data.weight})
+                        <span class="remove-lora" onclick="toggleLora('${filename}', false)">&times;</span>
+                    </span>
+                `).join('')}
+            `;
+        }
+
+        async function detectLorasFromPrompt() {
+            const prompt = buildPrompt();
+            if (!prompt || prompt.length < 10) {
+                alert('Please enter a prompt first');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/loras/detect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, model: 'illustrious' })
+                });
+                const data = await response.json();
+
+                suggestedLoras = data.suggested || [];
+                const autoEnabled = data.auto_enabled || [];
+
+                // Show suggestions
+                const suggestionsEl = document.getElementById('loraSuggestions');
+                if (suggestedLoras.length > 0) {
+                    suggestionsEl.style.display = 'block';
+                    suggestionsEl.innerHTML = `
+                        <div class="lora-suggested-indicator">
+                            🔮 Found ${suggestedLoras.length} matching LoRAs
+                            <button onclick="applyAutoLoras()" style="margin-left: auto; padding: 2px 8px; background: #10ac84; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.65rem;">
+                                Apply ${autoEnabled.length} Auto
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    suggestionsEl.style.display = 'none';
+                }
+
+                // Highlight suggested LoRAs in the list
+                renderLoraCategoriesWithSuggestions();
+
+            } catch (error) {
+                console.error('Failed to detect LoRAs:', error);
+            }
+        }
+
+        function renderLoraCategoriesWithSuggestions() {
+            const container = document.getElementById('loraCategories');
+            const suggestedFilenames = new Set(suggestedLoras.map(l => l.filename));
+
+            // Group by category
+            const byCategory = {};
+            loraLibrary.forEach(lora => {
+                if (!byCategory[lora.category]) {
+                    byCategory[lora.category] = [];
+                }
+                byCategory[lora.category].push(lora);
+            });
+
+            // Category display order
+            const categoryOrder = ['body', 'style', 'pose', 'effect', 'clothing', 'quality'];
+            const sortedCategories = Object.keys(byCategory).sort((a, b) => {
+                return categoryOrder.indexOf(a) - categoryOrder.indexOf(b);
+            });
+
+            container.innerHTML = sortedCategories.map(category => `
+                <div class="lora-category">
+                    <div class="lora-category-title">${category}</div>
+                    ${byCategory[category].map(lora =>
+                        renderLoraItem(lora, suggestedFilenames.has(lora.filename))
+                    ).join('')}
+                </div>
+            `).join('');
+        }
+
+        async function applyAutoLoras() {
+            try {
+                const prompt = buildPrompt();
+                const response = await fetch(`${API_BASE}/loras/detect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, model: 'illustrious' })
+                });
+                const data = await response.json();
+
+                // Apply auto-enabled LoRAs
+                (data.auto_enabled || []).forEach(auto => {
+                    const lora = loraLibrary.find(l => l.filename === auto.name);
+                    if (lora) {
+                        selectedLoras[auto.name] = {
+                            weight: auto.weight,
+                            display_name: lora.display_name
+                        };
+                    }
+                });
+
+                renderLoraCategoriesWithSuggestions();
+                updateActiveLoraTags();
+
+            } catch (error) {
+                console.error('Failed to apply auto LoRAs:', error);
+            }
+        }
+
+        // Get selected LoRAs for API request
+        function getSelectedLorasForApi() {
+            return Object.entries(selectedLoras).map(([filename, data]) => ({
+                name: filename,
+                weight: data.weight
+            }));
+        }
+
+        // Gallery functions
+        async function loadGallery() {
+            try {
+                const response = await fetch(`${API_BASE}/history?limit=20`);
+                const data = await response.json();
+
+                if (data.images && data.images.length > 0) {
+                    galleryGrid.innerHTML = data.images.map(img => `
+                        <div class="gallery-item" data-seed="${img.seed || ''}" data-prompt="${encodeURIComponent(img.prompt || '')}" data-settings='${JSON.stringify(img.settings || {})}' onclick="selectGalleryImage(this, '${img.url}', ${img.seed || 'null'}, '${encodeURIComponent(img.prompt || '')}')">
+                            <img src="${img.url}" alt="Generated image" loading="lazy">
+                            <button class="delete-btn" onclick="event.stopPropagation(); deleteImage('${img.filename}')">&times;</button>
+                            <div class="overlay">
+                                ${img.seed ? `Seed: ${img.seed}` : 'No seed'}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    galleryGrid.innerHTML = '<div class="gallery-empty">No images yet.<br>Generate some!</div>';
+                }
+            } catch (error) {
+                console.error('Failed to load gallery:', error);
+            }
+        }
+
+        function selectGalleryImage(element, url, seed, encodedPrompt) {
+            // Clear previous selection
+            document.querySelectorAll('.gallery-item').forEach(item => item.classList.remove('selected'));
+            element.classList.add('selected');
+
+            // Set as base image
+            baseImage = {
+                url: url,
+                seed: seed,
+                prompt: decodeURIComponent(encodedPrompt),
+                settings: JSON.parse(element.dataset.settings || '{}')
+            };
+
+            // Update UI
+            if (seed) {
+                seedInput.value = seed;
+                lastGeneratedSeed = seed;
+            }
+
+            // Show current base indicator
+            document.getElementById('currentBase').style.display = 'block';
+            document.getElementById('baseSeedDisplay').textContent = seed || 'Unknown';
+
+            // Enable variation buttons
+            variationBtn.disabled = false;
+            progressBtn.disabled = false;
+
+            // Show the image in result area
+            resultArea.innerHTML = `
+                <img src="${url}" class="result-image" alt="Selected image">
+                <div class="image-info">
+                    <p>Seed: <span>${seed || 'Unknown'}</span></p>
+                    <p style="font-size: 0.7rem; opacity: 0.6;">Click "Create Variation" or "Progress Scene"</p>
+                </div>
+            `;
+        }
+
+        function clearBase() {
+            baseImage = null;
+            document.getElementById('currentBase').style.display = 'none';
+            document.querySelectorAll('.gallery-item').forEach(item => item.classList.remove('selected'));
+            variationBtn.disabled = true;
+            progressBtn.disabled = true;
+        }
+
+        async function deleteImage(filename) {
+            if (!confirm('Delete this image?')) return;
+
+            try {
+                await fetch(`${API_BASE}/history/${filename}`, { method: 'DELETE' });
+                loadGallery();
+            } catch (error) {
+                console.error('Failed to delete:', error);
+            }
+        }
+
+        // Generate image
+        async function generateImage(variationType = null) {
+            let prompt = buildPrompt();
+            let seed = seedInput.value ? parseInt(seedInput.value) : null;
+
+            // Handle variations
+            if (variationType === 'variation' && baseImage) {
+                // Use same prompt but slightly different seed
+                seed = (baseImage.seed || 0) + Math.floor(Math.random() * 10) + 1;
+                if (baseImage.prompt) {
+                    prompt = baseImage.prompt;
+                }
+            } else if (variationType === 'progress' && baseImage) {
+                // Keep seed, modify prompt for scene progression
+                seed = baseImage.seed;
+                // Add progression tags based on current lewdness
+                const lewdVal = parseInt(lewdnessSlider.value);
+                if (lewdVal < 4) {
+                    lewdnessSlider.value = lewdVal + 1;
+                    updateSliderLabels();
+                }
+                prompt = buildPrompt();
+            }
+
+            generateBtn.disabled = true;
+            variationBtn.disabled = true;
+            progressBtn.disabled = true;
+            generateBtn.textContent = 'Generating...';
+
+            resultArea.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Generating your image...</div>
+                    <div class="loading-text" style="opacity: 0.6">This takes 3-4 minutes</div>
+                </div>
+            `;
+
+            try {
+                // Get dimensions based on subject count
+                const dims = SUBJECT_DIMENSIONS[currentSubject] || SUBJECT_DIMENSIONS['1girl'];
+                console.log('Sending prompt:', prompt, 'Seed:', seed, 'Dimensions:', dims);
+
+                const requestBody = {
+                    positive_prompt: prompt,
+                    width: dims.width,
+                    height: dims.height
+                };
+
+                if (seed !== null) {
+                    requestBody.seed = seed;
+                }
+
+                // Build LoRA list from multiple sources
+                let customLoras = [];
+
+                // 1. Add LoRAs selected from the browser
+                const browserLoras = getSelectedLorasForApi();
+                if (browserLoras.length > 0) {
+                    customLoras.push(...browserLoras);
+                    console.log('Using browser-selected LoRAs:', browserLoras);
+                }
+
+                // 2. Add pose LoRA if selected (and not already in browser selection)
+                if (currentPose && currentPose !== 'none' && POSE_LORAS[currentPose]?.lora) {
+                    const poseLora = POSE_LORAS[currentPose].lora;
+                    // Only add if not already selected in browser
+                    if (!selectedLoras[poseLora.name]) {
+                        customLoras.push({ name: poseLora.name, weight: poseLora.weight });
+                        console.log('Adding pose LoRA:', poseLora);
+                    }
+                }
+
+                // If we have custom LoRAs, add them to request
+                if (customLoras.length > 0) {
+                    requestBody.custom_loras = customLoras;
+                    requestBody.use_standard_lora = false;  // Don't mix with default LoRAs when custom ones selected
+                }
+
+                const response = await fetch(`${API_BASE}/generate-raw-hires`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+                console.log('API Response:', data);
+
+                if (data.success) {
+                    const imageUrl = data.file_url || data.file_path;
+                    lastGeneratedSeed = data.seed;
+                    lastGeneratedPrompt = prompt;
+
+                    // Update seed input if not locked
+                    if (!seedLocked) {
+                        seedInput.value = data.seed;
+                    }
+
+                    if (imageUrl) {
+                        resultArea.innerHTML = `
+                            <img src="${imageUrl}" class="result-image" alt="Generated image"
+                                 onerror="this.onerror=null; this.src='${data.file_path}'; console.log('Falling back to local path');">
+                            <div class="image-info">
+                                <p>Seed: <span>${data.seed}</span></p>
+                                <p>Size: <span>${data.settings?.final_width || '?'}x${data.settings?.final_height || '?'}</span></p>
+                                <p>Model: <span>Illustrious Animilf</span></p>
+                            </div>
+                        `;
+
+                        // Set as new base
+                        baseImage = {
+                            url: imageUrl,
+                            seed: data.seed,
+                            prompt: prompt,
+                            settings: data.settings
+                        };
+                        document.getElementById('currentBase').style.display = 'block';
+                        document.getElementById('baseSeedDisplay').textContent = data.seed;
+
+                        // Reload gallery
+                        setTimeout(loadGallery, 1000);
+                    } else {
+                        throw new Error('No image URL in response');
+                    }
+                } else {
+                    throw new Error(data.error || 'Generation failed');
+                }
+            } catch (error) {
+                console.error('Generation error:', error);
+                resultArea.innerHTML = `
+                    <div class="error">
+                        <p>Generation failed</p>
+                        <p style="font-size: 0.8rem; margin-top: 8px;">${error.message}</p>
+                        <p style="font-size: 0.7rem; margin-top: 8px; opacity: 0.6;">Check browser console for details</p>
+                    </div>
+                `;
+            }
+
+            generateBtn.disabled = false;
+            generateBtn.textContent = 'Generate Image';
+
+            // Re-enable variation buttons if we have a base
+            if (baseImage) {
+                variationBtn.disabled = false;
+                progressBtn.disabled = false;
+            }
+        }
+
+        // Event listeners
+        lewdnessSlider.addEventListener('input', () => {
+            updateSliderLabels();
+            updatePromptPreview();
+        });
+
+        breastSizeSlider.addEventListener('input', () => {
+            updateSliderLabels();
+            updatePromptPreview();
+        });
+
+        expressionSlider.addEventListener('input', () => {
+            updateSliderLabels();
+            updatePromptPreview();
+        });
+
+        naturalPrompt.addEventListener('input', updatePromptPreview);
+        generateBtn.addEventListener('click', () => generateImage());
+        variationBtn.addEventListener('click', () => generateImage('variation'));
+        progressBtn.addEventListener('click', () => generateImage('progress'));
+        lockSeedBtn.addEventListener('click', toggleSeedLock);
+        document.getElementById('randomSeedBtn').addEventListener('click', randomizeSeed);
+
+        // Initialize
+        setupToggles();
+        setupPresets();
+        updateSliderLabels();
+        updatePromptPreview();
+        loadGallery();
+        loadLoraLibrary();  // Load LoRA library on startup
+    </script>
+</body>
+</html>
